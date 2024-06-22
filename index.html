@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Videó Lejátszó és Kommentelés</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            background-color: #f1f1f1;
+            border-bottom: 1px solid #ccc;
+        }
+        .header .login-form {
+            display: flex;
+            align-items: center;
+        }
+        .header .login-form input {
+            margin: 0 5px;
+            padding: 5px;
+        }
+        .header .login-form button {
+            padding: 5px 10px;
+        }
+        .video-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        .reaction-buttons {
+            display: flex;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        .reaction-buttons button {
+            margin: 0 10px;
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        .comments-container {
+            margin-top: 20px;
+            border-top: 1px solid #ccc;
+            padding-top: 20px;
+        }
+        .comment-form {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        .comment-form textarea {
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 1em;
+            resize: vertical;
+            height: 100px; /* Kisebb méret a textarea-nak */
+        }
+        .comment-form button {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .comment-form button:hover {
+            background-color: #45a049;
+        }
+        .comment {
+            border-bottom: 1px solid #ccc;
+            padding: 10px 0;
+        }
+        .comment .username {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>Videó Lejátszó</div>
+    <div class="login-form" id="login-form">
+        <input type="text" id="login-username" placeholder="Felhasználónév" required>
+        <input type="password" id="login-password" placeholder="Jelszó" required>
+        <button onclick="register()">Regisztráció</button>
+        <button onclick="login()">Bejelentkezés</button>
+    </div>
+    <div id="user-info" style="display: none;">
+        Bejelentkezve: <span id="logged-in-user"></span>
+        <button onclick="logout()">Kijelentkezés</button>
+    </div>
+</div>
+
+<div class="video-container">
+    <video controls width="100%">
+        <source src="vid.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <div class="reaction-buttons">
+        <button id="like-button" onclick="toggleLike()">👍 <span id="like-count">0</span></button>
+        <button id="dislike-button" onclick="toggleDislike()">👎 <span id="dislike-count">0</span></button>
+    </div>
+</div>
+
+<div class="comments-container">
+    <h2>Hozzászólások</h2>
+    <div class="comment-form">
+        <textarea id="comment" rows="4" placeholder="Írj egy hozzászólást..." required></textarea>
+        <button onclick="addComment()">Hozzászólás</button>
+    </div>
+    <div id="comments"></div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        loadComments();
+        loadReactions();
+        checkLoginStatus();
+    });
+
+    function register() {
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+
+        if (!username || !password) {
+            alert('Kérjük, adja meg a felhasználónevet és a jelszót!');
+            return;
+        }
+
+        if (localStorage.getItem(`user_${username}`)) {
+            alert('Ez a felhasználónév már foglalt!');
+            return;
+        }
+
+        localStorage.setItem(`user_${username}`, password);
+        alert('Regisztráció sikeres! Most már bejelentkezhet.');
+    }
+
+    function login() {
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+
+        const storedPassword = localStorage.getItem(`user_${username}`);
+
+        if (storedPassword === password) {
+            localStorage.setItem('loggedInUser', username);
+            alert('Bejelentkezés sikeres!');
+            checkLoginStatus();
+        } else {
+            alert('Helytelen felhasználónév vagy jelszó!');
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('loggedInUser');
+        checkLoginStatus();
+    }
+
+    function checkLoginStatus() {
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+            document.getElementById('logged-in-user').textContent = loggedInUser;
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('user-info').style.display = 'block';
+        } else {
+            document.getElementById('logged-in-user').textContent = '';
+            document.getElementById('login-form').style.display = 'flex';
+            document.getElementById('user-info').style.display = 'none';
+        }
+    }
+
+    function addComment() {
+        const commentInput = document.getElementById('comment');
+        const loggedInUser = localStorage.getItem('loggedInUser');
+
+        if (!loggedInUser) {
+            alert('Kérjük, jelentkezzen be a hozzászóláshoz!');
+            return;
+        }
+
+        const comment = commentInput.value.trim();
+
+        if (comment) {
+            const commentData = {
+                username: loggedInUser,
+                comment: comment
+            };
+
+            saveComment(commentData);
+            displayComment(commentData);
+
+            commentInput.value = '';
+        } else {
+            alert('Kérjük, írjon egy hozzászólást!');
+        }
+    }
+
+    function saveComment(comment) {
+        let comments = JSON.parse(localStorage.getItem('comments')) || [];
+        comments.push(comment);
+        localStorage.setItem('comments', JSON.stringify(comments));
+    }
+
+    function loadComments() {
+        let comments = JSON.parse(localStorage.getItem('comments')) || [];
+        comments.forEach(displayComment);
+    }
+
+    function displayComment(commentData) {
+        const commentsContainer = document.getElementById('comments');
+        const commentElement = document.createElement('div');
+        commentElement.classList.add('comment');
+
+        const usernameElement = document.createElement('div');
+        usernameElement.classList.add('username');
+        usernameElement.textContent = commentData.username;
+
+        const commentTextElement = document.createElement('div');
+        commentTextElement.classList.add('comment-text');
+        commentTextElement.textContent = commentData.comment;
+
+        commentElement.appendChild(usernameElement);
+        commentElement.appendChild(commentTextElement);
+
+        commentsContainer.appendChild(commentElement);
+    }
+
+    function toggleLike() {
+        const likeCountElement = document.getElementById('like-count');
+        const dislikeCountElement = document.getElementById('dislike-count');
+        let likeCount = parseInt(likeCountElement.textContent);
+        let dislikeCount = parseInt(dislikeCountElement.textContent);
+
+        if (localStorage.getItem('liked') === 'true') {
+            likeCount--;
+            localStorage.removeItem('liked');
+        } else {
+            likeCount++;
+            localStorage.setItem('liked', 'true');
+            if (localStorage.getItem('disliked') === 'true') {
+                dislikeCount--;
+                localStorage.removeItem('disliked');
+            }
+        }
+
+        localStorage.setItem('likeCount', likeCount);
+        localStorage.setItem('dislikeCount', dislikeCount);
+
+        updateReactionCounts();
+    }
+
+    function toggleDislike() {
+        const likeCountElement = document.getElementById('like-count');
+        const dislikeCountElement = document.getElementById('dislike-count');
+        let likeCount = parseInt(likeCountElement.textContent);
+        let dislikeCount = parseInt(dislikeCountElement.textContent);
+
+        if (localStorage.getItem('disliked') === 'true') {
+            dislikeCount--;
+            localStorage.removeItem('disliked');
+        } else {
+            dislikeCount++;
+            localStorage.setItem('disliked', 'true');
+            if (localStorage.getItem('liked') === 'true') {
+                likeCount--;
+                localStorage.removeItem('liked');
+            }
+        }
+
+        localStorage.setItem('likeCount', likeCount);
+        localStorage.setItem('dislikeCount', dislikeCount);
+
+        updateReactionCounts();
+    }
+
+    function loadReactions() {
+        const likeCount = localStorage.getItem('likeCount') || 0;
+        const dislikeCount = localStorage.getItem('dislikeCount') || 0;
+        document.getElementById('like-count').textContent = likeCount;
+        document.getElementById('dislike-count').textContent = dislikeCount;
+    }
+
+    function updateReactionCounts() {
+        document.getElementById('like-count').textContent = localStorage.getItem('likeCount');
+        document.getElementById('dislike-count').textContent = localStorage.getItem('dislikeCount');
+    }
+</script>
+
+</body>
+</html>
